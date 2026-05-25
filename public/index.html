@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube うろ覚え検索エンジン</title>
+    <style>
+        :root {
+            --primary-color: #ff0000;
+            --bg-color: #f9f9f9;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .search-container {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        input {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled { background-color: #ccc; }
+
+        #results {
+            margin-top: 30px;
+            width: 100%;
+            max-width: 800px;
+            display: grid;
+            gap: 20px;
+        }
+        .result-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+        }
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .result-card img {
+            width: 160px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        .result-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .result-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .result-text {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+        .status {
+            font-size: 14px;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🔍 YouTube うろ覚え検索</h1>
+        <p>セリフの一部から、あの動画のあのシーンを見つける</p>
+    </div>
+
+    <div class="search-container">
+        <input type="text" id="channel" placeholder="チャンネル名 または チャンネルID">
+        <input type="text" id="keyword" placeholder="うろ覚えのキーワード（スペース区切り可）">
+        <button id="searchBtn">動画を特定する</button>
+        <div id="status" class="status"></div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const searchBtn = document.getElementById('searchBtn');
+        const resultsDiv = document.getElementById('results');
+        const statusDiv = document.getElementById('status');
+
+        searchBtn.onclick = async () => {
+            const channel = document.getElementById('channel').value;
+            const q = document.getElementById('keyword').value;
+
+            if (!channel || !q) return alert('入力してください');
+
+            searchBtn.disabled = true;
+            statusDiv.innerText = '文字起こしデータを解析中...（数秒かかります）';
+            resultsDiv.innerHTML = '';
+
+            try {
+                const res = await fetch(`/api/search?channel=${encodeURIComponent(channel)}&q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+
+                if (data.results && data.results.length > 0) {
+                    statusDiv.innerText = `${data.results.length} 件のシーンが見つかりました`;
+                    data.results.forEach(item => {
+                        const card = document.createElement('a');
+                        card.className = 'result-card';
+                        card.href = item.url;
+                        card.target = '_blank';
+                        card.innerHTML = `
+                            <img src="${item.thumbnail}" alt="thumbnail">
+                            <div class="result-info">
+                                <div class="result-title">${item.title}</div>
+                                <div class="result-text">「${item.text}」 (${Math.floor(item.time/60)}分${item.time%60}秒〜)</div>
+                            </div>
+                        `;
+                        resultsDiv.appendChild(card);
+                    });
+                } else {
+                    statusDiv.innerText = '一致するシーンが見つかりませんでした。';
+                }
+            } catch (e) {
+                statusDiv.innerText = 'エラーが発生しました。';
+            } finally {
+                searchBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
