@@ -5,11 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 8080;
-const HOST = '127.0.0.1'; // ローカルホストを明示
+const PORT = process.env.PORT || 3001;
 
-const DATA_DIR = path.join(__dirname, 'transcripts');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+// Vercel等の環境では /tmp を使用する
+const DATA_DIR = process.env.VERCEL ? '/tmp/transcripts' : path.join(__dirname, 'transcripts');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -20,7 +20,8 @@ function toHiragana(text) {
 
 async function getChannelVideos(query) {
     const r = await yts(query);
-    return r.videos.slice(0, 50).map(v => ({
+    // Vercelのタイムアウト制限（10秒）を考慮し、スキャン数を20件に調整
+    return r.videos.slice(0, 20).map(v => ({
         title: v.title,
         videoId: v.videoId,
         url: v.url,
@@ -34,7 +35,8 @@ async function getTranscript(video) {
     try {
         const transcript = await YoutubeTranscript.fetchTranscript(video.videoId, { lang: 'ja' });
         const data = { metadata: video, transcript: transcript };
-        fs.writeFileSync(filePath, JSON.stringify(data));
+        // ローカル環境のみキャッシュ保存を試みる（Vercelでは永続化されない）
+        try { fs.writeFileSync(filePath, JSON.stringify(data)); } catch(e) {}
         return data;
     } catch (e) {
         return null;
@@ -75,6 +77,11 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
-app.listen(PORT, HOST, () => {
-    console.log(`🚀 Server started at http://${HOST}:${PORT}`);
-});
+// ローカル実行時のみ listen する
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server started at http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;
